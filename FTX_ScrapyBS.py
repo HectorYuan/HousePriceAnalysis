@@ -5,21 +5,19 @@ import re
 import pandas as pd
 import numpy as np
 import json
-import location_func
 from geopy.distance import geodesic
+import location_func
 coord = location_func.coord_trans
-#%%  爬取二手房数据
+#  爬取二手房数据
 
 #设置请求头：包括 UA 和 Coockie
 
 headers = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/69.0.3497.100 Safari/537.36',
-    'cookie': 'global_cookie=pzvz4rxn68292nbq0e7htglx91nkdfwbu7i; __utmz=147393320.1568695301.1.1.utmcsr=shbbs.fang.com|utmccn=(referral)|utmcmd=referral|utmcct=/esf~-1/538150834_538150842.htm; __utma=147393320.1476417876.1568695301.1568695301.1568771948.2; __utmc=147393320; Captcha=517779524C44434B39346B48596F65442F75734644684E497361792F6F506668563078316356784D4E785A477279484E3245617138463555314564787379623965542B4A4B7359627942413D; newhouse_user_guid=35B671E8-BF35-888C-AC78-ED09FB6489C8; newhouse_chat_guid=3262F18D-7EFB-AE4D-CC6E-D47888369019; g_sourcepage=esf_xq%5Elb_pc; __utmt_t0=1; __utmt_t1=1; __utmt_t2=1; unique_cookie=U_7eu0ocfmua6k7nyn858kd6mb727k0omb896*20; __utmb=147393320.60.10.1568771948'
+    #'cookie': 'global_cookie=pzvz4rxn68292nbq0e7htglx91nkdfwbu7i; __utmz=147393320.1568695301.1.1.utmcsr=shbbs.fang.com|utmccn=(referral)|utmcmd=referral|utmcct=/esf~-1/538150834_538150842.htm; __utma=147393320.1476417876.1568695301.1568695301.1568771948.2; __utmc=147393320; Captcha=517779524C44434B39346B48596F65442F75734644684E497361792F6F506668563078316356784D4E785A477279484E3245617138463555314564787379623965542B4A4B7359627942413D; newhouse_user_guid=35B671E8-BF35-888C-AC78-ED09FB6489C8; newhouse_chat_guid=3262F18D-7EFB-AE4D-CC6E-D47888369019; g_sourcepage=esf_xq%5Elb_pc; __utmt_t0=1; __utmt_t1=1; __utmt_t2=1; unique_cookie=U_7eu0ocfmua6k7nyn858kd6mb727k0omb896*20; __utmb=147393320.60.10.1568771948'
 }
 
-origin_url = r"https://sh.esf.fang.com/housing/25__0_0_0_0_1_0_0_0/"
-
-
+origin_url = r"https://sh.esf.fang.com/housing/__0_39_0_0_1_0_0_0/"
 
 
 #第一步：爬取小区信息
@@ -28,9 +26,9 @@ def init_dict():
     return  origin_dict
 
 
-def export_block_Info(blockInfo_dict, district, area):
+def export_block_Info(blockInfo_dict, district):
     '''导出小区信息'''
-    with open(f'{district}区{area}各小区信息.txt', 'a', encoding='utf-8') as file:
+    with open(f'{district}区各小区信息.txt', 'a', encoding='utf-8') as file:
         file.write('|'.join(blockInfo_dict.values()))
         file.write('\n')
 
@@ -39,7 +37,7 @@ def get_location(data):
     '''获取指定地点的位置坐标信息'''
     data['位置坐标'] = [coord(addr) for addr in data['小区位置']]
     data['经度'] = data['位置坐标'].str.split(',').str[0]
-    data['纬度'] = data['位置坐标'].str.split(',').str[0]
+    data['纬度'] = data['位置坐标'].str.split(',').str[1]
     print('已经完成位置的坐标识别处理')
     return data
 
@@ -47,9 +45,10 @@ def get_location(data):
 def distance_cacu(data, target='人民广场'):
     '''获取小区到指定地址的直线距离'''
     target_location = eval(coord(target))
-    #data = data[data['1'].notnull() == True]
-    data[f'距离{target}'] = data.apply(lambda x: geodesic(
-        (x['纬度'], x['经度']), target_location).km, axis=1)
+    target_location = (lambda sub:  (sub[1], sub[0]))(target_location)
+    data[f'距离{target}-km'] = data.apply(lambda x: round(geodesic(
+        (x['纬度'], x['经度']), target_location).km, 2), axis=1)
+    print('已经完成位置间的坐标距离计算处理')
     return data
 
 
@@ -57,7 +56,7 @@ def to_df(blockInfo_dict):
     ''' 将字典转化为 DataFrame 对象'''
     dict_list = [blockInfo_dict]
     df = pd.DataFrame.from_dict(dict_list)
-    if df['活跃度等级'][0]:
+    if df['活跃度评级'][0]:
         df['活跃度等级'] = df['活跃度评级'].str.split(',').str[2].str.replace('属于', '')    
     coord = location_func.coord_trans #调用高德 api
     df = get_location(df)
@@ -76,7 +75,7 @@ def get_true_url(old_url):
     return old_url
 
 
-def get_district_url(url):
+def get_district_dict(url):
     '''获得区的链接信息，并存储到字典'''
     true_url = get_true_url(url)
     r =requests.get(url=true_url, headers=headers)
@@ -121,7 +120,7 @@ def get_area_url(old_url):
     return page_urls
 
 
-def get_block_url(old_url):
+def get_block_dict(old_url):
     '''获得某区域某一页的小区信息和url'''
     # old_url = r'https://sh.esf.fang.com/housing/25_5920_0_0_0_0_1_0_0_0/'
     true_url = get_true_url(old_url)
@@ -134,7 +133,7 @@ def get_block_url(old_url):
         block_url_dict[block_name] = block_url
     return block_url_dict
 
-def get_block_info(district, key, block_name, old_url):
+def get_block_info(district, area, block_name, old_url):
     '''获得小区的目标信息'''
     block_dict = init_dict()
     # old_url = r'https://jinqinyuan.fang.com/'
@@ -146,8 +145,8 @@ def get_block_info(district, key, block_name, old_url):
         soup = BeautifulSoup(r.text, 'lxml')
         block_price = soup.find(name='span', attrs={'class': 'prib'}).string
 
-        block_dict['区'] = district
-        block_dict['地区'] = key
+        block_dict['城区'] = district
+        block_dict['地区'] = area
         block_dict['小区名称'] = block_name
         if block_price == '暂无均价':
             print(f'{block_name}无均价数据')
@@ -178,70 +177,67 @@ def get_block_info(district, key, block_name, old_url):
     except:
         return 0
 
-def webCrawler_main(district, area, url):
+def webCrawler_main(district, area='全区', url=origin_url):
     '''获取所有小区名称和链接'''
 
-    def webCrawler_sub(area_urls, key):
-        for page_url in area_urls:
-            block_url_dict = get_block_url(page_url)  # 获得每个页面的所有小区名称和url
+    full_data = pd.DataFrame()
+    if url == origin_url:
+        district_dict = get_district_dict(url)
+        if district == '上海全市':
+            for key, value in district_dict.items():
+                print(f'开始{key}区的爬取')
+                df = webCrawler_main(district = key,  area =area, url = value)
+                full_data = full_data.append(df)
+                print(f'{key}已爬取完毕')
+        elif district in district_dict.keys():
+            district_url = district_dict[district]
+            print(f'开始{district}区的爬取')
+            area_dict = get_area_dict(district_url)
+            if area == '全区':
+                for key, value in area_dict.items():
+                    print(f'开始{key}地区的爬取：')
+                    df = webCrawler_main(district=district, area=key, url=value)
+                    full_data = full_data.append(df)
+            else:
+                print(f'开始{area}地区的爬取：')
+                full_data = webCrawler_main(district=district, area=area, url=area_dict[area])
+            print(f'{district}已爬取完毕')
+        
+        else:
+            print(f'{district}不正确或者无数据')
+        #result = full_data.reset_index()
+    
+    else:
+        page_urls = get_area_url(url)
+        for page_url in page_urls:
+            block_url_dict = get_block_dict(page_url)  # 获得每个页面的所有小区名称和url
             for block_name, block_url in block_url_dict.items():
-                # print(block_name, block_url)
                 block_dict = get_block_info(
-                    district, key, block_name, block_url)
+                    district, area, block_name, block_url)
                 if block_dict:
-                    export_block_Info(block_dict, district)
+                    #export_block_Info(block_dict, district)
                     df = to_df(block_dict)
                     full_data = full_data.append(df)
-        print(f'{key}已爬取完毕')
+        
+        #result = full_data.reset_index()
+        print(f'{area}已爬取完毕')
         print('--------------------------------------------------------------------')
+    result = full_data.reset_index()
+    return result
 
-
-    full_data = pd.DataFrame()
-
-    if area == '全区':
-        targetArea_dict = get_area_dict(url)    
-        for key, value in targetArea_dict.items():
-            print(f'开始{key}地区的爬取：')
-            area_urls = get_area_url(value)  # 获得该地区的所有子url
-            webCrawler_sub(area_urls, key)
-            # TODO to improve
-    else:
-        area_urls = get_area_url(area)  # 获得该地区的所有子url
-        webCrawler_sub(area_urls, district)
-
-    return full_data
-
-
-def block_city(district ='上海全市' ,area = '全区', url = origin_url):
-    district_dict = get_district_url(url)
-
-    if district == '上海全市':
-        for key, value in district_dict.items():
-            print(f'开始{key}区的爬取')
-            webCrawler_main(key,value)
-            print(f'{key}已爬取完毕')
-
-    else:
-        target_url = district_dict[district]
-        print(f'开始{district}区的爬取')
-        webCrawler_main(district, target_url)
-        print(f'{district}已爬取完毕')
-
-
-
-def file_handler(district, area):
-    block_list = block_list(init_dict().keys())
-    data = pd.read_csv(f'{district}区{area}各小区信息.txt', sep="|")
+def file_handler(district):
+    block_list = init_dict().keys()
+    data = pd.read_csv(f'{district}区各小区信息.txt', sep="|")
     data.columns = block_list
     data['活跃度等级'] = data['活跃度评级'].str.split(',').str[2].str.replace('属于', '')
     data = get_location(data)
     data = distance_cacu(data)
-    data.to_csv(f'{district}区{area}各小区信息.csv', encoding='utf-8', index=False)
+    data.to_csv(f'{district}区各小区信息.csv', encoding='utf-8', index=False)
 
 #%%
 if __name__ == '__main__':
     district = '黄浦'
     area = '董家渡'
-    block_city(district, area)
-    file_handler(district, area)
+    data =  webCrawler_main(district, area)
+    #file_handler(district)
     
