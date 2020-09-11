@@ -45,8 +45,11 @@ def distance_cacu(data, target='人民广场'):
     '''获取小区到指定地址的直线距离'''
     target_location = eval(coord(target))
     target_location = (lambda sub:  (sub[1], sub[0]))(target_location)
-    data[f'距离{target}-km'] = data.apply(lambda x: round(geodesic(
-        (x['纬度'], x['经度']), target_location).km, 2), axis=1)
+    try:
+        data[f'距离{target}-km'] = data.apply(lambda x: round(geodesic(
+            (x['纬度'], x['经度']), target_location).km, 2), axis=1)
+    except ValueError:
+        data[f'距离{target}-km'] = None
     #print('已经完成位置间的坐标距离计算处理')
     return data
 
@@ -184,16 +187,16 @@ def webCrawler_main(district, area='全区', url=origin_url):
         district_dict = get_district_dict(url)
         if district == '上海全市':
             district_sum = len(district_dict)
-            for key, value in district_dict.items():
+            for key in district_dict.keys():
                 district_done = list(district_dict).index(key) + 1
-                print(f'>   开始{key}区的爬取:{district_done}/{district_sum}')
-                df = webCrawler_main(district = key,  area =area, url = value)
+                print(f'#   准备{key}区的爬取:{district_done}/{district_sum}')
+                df = webCrawler_main(district = key,  area =area, url = origin_url)
                 full_data = full_data.append(df)
                 print(f'-   {key}区已爬取完毕')
 
         elif district in district_dict.keys():
             district_url = district_dict[district]
-            print(f'>   开始{district}区的爬取:1/1')
+            print(f'>   开始{district}区的爬取')
             area_dict = get_area_dict(district_url)
             if area == '全区':
                 area_sum = len(area_dict)
@@ -215,7 +218,7 @@ def webCrawler_main(district, area='全区', url=origin_url):
         page_sum = len(page_urls)
         for page_url in page_urls:
             page_done = list(page_urls).index(page_url)+1
-            print(f'>>> 进入{area}地区的页面:{page_done}/{page_sum}')
+            print(f'>>> 进入{district}{area}地区的页面:{page_done}/{page_sum}')
             block_url_dict = get_block_dict(page_url)  # 获得每个页面的所有小区名称和url
             block_sum = len(block_url_dict)
             for block_name, block_url in block_url_dict.items():
@@ -226,7 +229,7 @@ def webCrawler_main(district, area='全区', url=origin_url):
                     #export_block_Info(block_dict, district)
                     df = to_df(block_dict)
                     full_data = full_data.append(df)
-                    print(f'--- {block_name}的信息已爬取:{block_done}/{block_sum} ')
+                    print(f'--- {area}地区：{block_name}的信息已爬取:{block_done}/{block_sum} ')
         
         #result = full_data.reset_index()
         print(f'--  {area}已爬取完毕')
@@ -249,8 +252,8 @@ def file_handler(district):
 
 #%%
 if __name__ == '__main__':
-    district = '浦东'
+    district = '上海全市'
     area = '三林'
-    data =  webCrawler_main(district,area)
+    data =  webCrawler_main(district)
     #file_handler(district)
     
