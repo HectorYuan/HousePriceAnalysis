@@ -12,16 +12,25 @@ import time
 from os.path import exists
 from os import mkdir,remove
 from pandas.errors import EmptyDataError
+import random
+origin_url = r"https://sh.esf.fang.com/housing/__1_39_0_0_1_0_0_0/"
 
 # 设置请求头：包括 UA 和 Coockie
 
-headers = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/69.0.3497.100 Safari/537.36',
-    'cookie':'{"city":"sh","csrfToken":"xFVPP0WewcU1quPpJwUtmBuv","g_sourcepage":"esf_xq^lb_pc","global_cookie":"071ua2jfroy9ui0m0emxpu16j60kf151o3n","unique_cookie":"U_071ua2jfroy9ui0m0emxpu16j60kf151o3n*4"}'
-}
-
-origin_url = r"https://sh.esf.fang.com/housing/__1_39_0_0_1_0_0_0/"
-
+def rotate_headers():
+    user_agent_list = [
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_5) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/13.1.1 Safari/605.1.15',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:77.0) Gecko/20100101 Firefox/77.0',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.97 Safari/537.36',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:77.0) Gecko/20100101 Firefox/77.0',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.97 Safari/537.36',
+    ]
+    user_agent = random.choice(user_agent_list)
+    headers = {
+        'User-Agent': user_agent,
+        #'cookie': "global_cookie=egfp2ho7v890ugg0zazajbt2k17kd8ku10h; showCity=sh; newhouse_user_guid=15B30BEF-F50F-2239-A882-214F6A1472E3; newhouse_chat_guid=793D29EB-0BE6-2050-1E3D-8995E6E74F16; new_search_uid=5ae92cd7adeb4f3d043e942c151a137a; csrfToken=k35orjcMz6svAJrrm5MnQHNy; city=sh; lastscanpage=0; Captcha=5863737270567A7A674257654656716E6D315A4633666E4B466350326D3363694644396434654A655769364935396E5931636864784879444A4645425A6D4D684B38524A2F5970516E76513D; g_sourcepage=esf_xq%5Elb_pc; "
+        }
+    return headers
 
 # 第一步：爬取小区信息
 def init_dict():
@@ -41,6 +50,7 @@ def file_check(path):
     else:
         mkdir(path)
         print(f'{path} has created successfully')
+
 
 def get_location(data):
     '''获取指定地点的位置坐标信息'''
@@ -86,19 +96,18 @@ def time_wait(seconds):
     else:
         print('结束倒计时!!')
 
+
 def get_true_url(old_url):
     '''获得正确的url'''
     # print(old_url)
-    r = requests.get(url=old_url, headers=headers)
+    headers = rotate_headers()
+    r = requests.get(url=old_url, headers=rotate_headers())
     if r'<title>跳转...</title>' in r.text:
         soup = BeautifulSoup(r.text, 'lxml')
         new_url = soup.find(name='a', attrs={'class': 'btn-redir'}).attrs['href']
-        if get_true_url(new_url) == new_url:
-            return new_url
-        else:
-            print(get_true_url(new_url))
-            return None
+        return new_url
     return old_url
+
 
 def get_district_dict(url):
     '''获得区的链接信息，并存储到字典'''
@@ -109,7 +118,7 @@ def get_district_dict(url):
     else:
         true_url = get_true_url(url)
         df = pd.DataFrame()
-        r =requests.get(url=true_url, headers=headers)
+        r =requests.get(url=true_url, headers=rotate_headers())
         soup = BeautifulSoup(r.text, 'lxml')
         t = soup.find(name='div', attrs={'class': 'qxName'})
         selector = "#houselist_B03_02 > div.qxName > a"
@@ -139,7 +148,7 @@ def get_area_dict(url):
     else:
         df = pd.DataFrame()
         true_url = get_true_url(url)
-        r = requests.get(url=true_url, headers=headers)
+        r = requests.get(url=true_url, headers=rotate_headers())
         soup = BeautifulSoup(r.text, 'lxml')
         a = soup.find(name='p', attrs={'id': 'shangQuancontain', 'class': 'contain'})
         links = a.find_all(name='a')
@@ -161,7 +170,7 @@ def get_area_url(old_url):
     '''获得这个区域的其它 page_url'''
     # url = r'https://sh.esf.fang.com/housing/25_1646_0_0_0_0_1_0_0_0/'
     true_url = get_true_url(old_url)
-    r = requests.get(url=true_url, headers=headers)
+    r = requests.get(url=true_url, headers=rotate_headers())
     soup = BeautifulSoup(r.text, 'lxml')
     page_url = soup.find(name='div', attrs={'class': 'fanye gray6'})
     page_url_list = []
@@ -178,7 +187,7 @@ def get_block_dict(old_url):
     '''获得某区域某一页的小区信息和url'''
     # old_url = r'https://sh.esf.fang.com/housing/25_5920_0_0_0_0_1_0_0_0/'
     true_url = get_true_url(old_url)
-    r = requests.get(url=true_url, headers=headers)
+    r = requests.get(url=true_url, headers=rotate_headers())
     soup = BeautifulSoup(r.text, 'lxml')
     block_url_dict = {}
     for i in soup.find_all(name='a', attrs={'class': 'plotTit', 'target': '_blank'}):
@@ -195,7 +204,7 @@ def get_block_info(district, area, block_name, old_url):
 
     try:
         true_url = get_true_url(old_url)
-        r = requests.get(url=true_url, headers=headers)
+        r = requests.get(url=true_url, headers=rotate_headers())
         r.encoding = 'gb2312'
         soup = BeautifulSoup(r.text, 'lxml')
         block_price = soup.find(name='span', attrs={'class': 'prib'}).string
